@@ -1,0 +1,1 @@
+This folder may be useful for future projects? **Unity newbie here.**
