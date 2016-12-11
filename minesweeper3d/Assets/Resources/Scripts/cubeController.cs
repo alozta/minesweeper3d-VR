@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class cubeController : MonoBehaviour {
     
@@ -12,10 +13,9 @@ public class cubeController : MonoBehaviour {
     // Update is called once per frame
     void Update()
     {
-
-
-        //android tuning, quit when pressing back button, auto quit when manual kill
-        if (Input.GetKey(KeyCode.Escape))
+        objectClickListener();                          //click listener attached to the camera
+        
+        if (Input.GetKey(KeyCode.Escape))               //android tuning, quit when pressing back button, auto quit on manual kill
         {
             if (Application.platform == RuntimePlatform.Android)
             {
@@ -26,8 +26,10 @@ public class cubeController : MonoBehaviour {
 
     //#############################################################################################################################
     //class variables
-    static int SPACE_SIZE = 0;
-    static int MINE_COUNT = 0;
+    static int SPACE_SIZE = 5;                                      //default mode is easy
+    static int MINE_COUNT = 10;
+    public Cube[,,] space;
+    List<GameObject> textObjects = new List<GameObject>();          //cube replacement 3d text GameObjects, holding reference to rotate to face the camera on each update
 
     public class Cube
     {
@@ -54,8 +56,7 @@ public class cubeController : MonoBehaviour {
         public void setMine(bool status) { mine = status; }
         public void setText(int neighborMineCount) { textOnClick = neighborMineCount.ToString(); }
     }
-
-    public Cube[,,] space = new Cube[SPACE_SIZE, SPACE_SIZE, SPACE_SIZE];
+    
     //class variables
     //#############################################################################################################################
 
@@ -68,6 +69,7 @@ public class cubeController : MonoBehaviour {
     public void initializeGame(int mode)
     {
         selectGameMode(mode);
+        space = new Cube[SPACE_SIZE, SPACE_SIZE, SPACE_SIZE];
         generateSpace();
         generateRandomMines(MINE_COUNT);
     }
@@ -145,7 +147,7 @@ public class cubeController : MonoBehaviour {
         }
     }
     
-    //sets the game diffuculty. 0 is easy, 1 is medium, the rest represents hard mode
+    //sets the game diffuculty. 0 is easy, 1 is medium, 2 represents hard mode
     private static void selectGameMode(int mode)
     {
         if(mode == 0)
@@ -158,10 +160,36 @@ public class cubeController : MonoBehaviour {
             SPACE_SIZE = 7;
             MINE_COUNT = 33;
         }
-        else
+        else if (mode == 2)
         {
             SPACE_SIZE = 10;
             MINE_COUNT = 99;
+        }
+    }
+
+    //blast clicked cube & rotate 3d text GameObjects to the camera
+    private void objectClickListener()
+    {
+        if (Input.GetMouseButtonDown(0))                    // if left button pressed
+        {
+            Ray ray = GetComponent<Camera>().ScreenPointToRay(Input.mousePosition);
+            RaycastHit hit;
+            if (Physics.Raycast(ray, out hit))
+            {
+                // the object identified by hit.transform was clicked
+                // do whatever you want
+                Destroy(hit.transform.gameObject);                              //destroy the object located at x,y,z
+                
+                GameObject text = Instantiate(Resources.Load("Prefabs/prefab_text"), hit.transform.gameObject.transform.position, Quaternion.identity) as GameObject;       //place a 3d text object at x,y,z
+                text.GetComponent<TextMesh>().text = "4";
+                textObjects.Add(text);
+            }
+        }
+
+        Transform t = GetComponent<Camera>().transform;                     //rotate all 3d text objects to this angle
+        for (int i = 0; i < textObjects.Count; ++i)
+        {
+            textObjects[i].transform.LookAt(t.InverseTransformDirection(t.position.x,0,t.position.z));
         }
     }
 
