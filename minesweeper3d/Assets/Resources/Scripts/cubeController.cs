@@ -13,7 +13,10 @@ public class cubeController : MonoBehaviour {
     // Update is called once per frame
     void Update()
     {
-        objectClickListener();                          //click listener attached to the camera
+        if (MODIFY_SPACE)                                   //if the game continues
+        {
+            objectClickListener();                          //click listener attached to the camera
+        }
         
         if (Input.GetKey(KeyCode.Escape))               //android tuning, quit when pressing back button, auto quit on manual kill
         {
@@ -28,6 +31,7 @@ public class cubeController : MonoBehaviour {
     //class variables
     static int SPACE_SIZE = 5;                                      //default mode is easy
     static int MINE_COUNT = 10;
+    static bool MODIFY_SPACE = true;                                //becomes false if user hits the mine, chance to observe the space without further actions
     public Cube[,,] space;
     List<GameObject> textObjects = new List<GameObject>();          //cube replacement 3d text GameObjects, holding reference to rotate to face the camera on each update
 
@@ -37,7 +41,7 @@ public class cubeController : MonoBehaviour {
         private Point3D point;
         private bool alive;
         private bool mine;
-        private string textOnClick;                     //text to show when the cube is clicked
+        private string neigborMineCount;                     //text to show when the cube is clicked
 
         //set x,y,z of a cube, make it alive and mine free
         public Cube(int x, int y, int z)
@@ -45,16 +49,19 @@ public class cubeController : MonoBehaviour {
             point = new Point3D(x, y, z);
             alive = true;
             mine = false;
-            textOnClick = "";
+            neigborMineCount = "";
             cube = Instantiate(Resources.Load("Prefabs/prefab_cube"), new Vector3(x, y, z), Quaternion.identity) as GameObject;
         }
 
         public bool getStatus() { return alive; }
         public Point3D getPoint() { return point; }
-        public GameObject getGameObject() { return cube; }
-        public bool getMine() { return mine; }
+        public GameObject getCube() { return cube; }
+        public bool hasMine() { return mine; }
+        public int getNeigborMineCountI() { if (neigborMineCount.Equals("")) return 0; else return int.Parse(neigborMineCount); }
+        public string getNeigborMineCountS() { return neigborMineCount; }
         public void setMine(bool status) { mine = status; }
-        public void setText(int neighborMineCount) { textOnClick = neighborMineCount.ToString(); }
+        public void setNeigborMineCount(int neighborMineCount) { this.neigborMineCount = neighborMineCount.ToString(); }
+        public void setCube(GameObject o) { cube = o; }
     }
     
     //class variables
@@ -72,6 +79,7 @@ public class cubeController : MonoBehaviour {
         space = new Cube[SPACE_SIZE, SPACE_SIZE, SPACE_SIZE];
         generateSpace();
         generateRandomMines(MINE_COUNT);
+        enableGodMode();
     }
     
     //generates SPACE_SIZExSPACE_SIZExSPACE_SIZE 3D playground with their coordinates
@@ -89,7 +97,7 @@ public class cubeController : MonoBehaviour {
         }
     }
 
-    //places n mines in 3d space, expects n==MINE_COUNT but accepts n<MINE_COUNT situations too, TODO: this should be optimized to offer better gameplay
+    //places n mines in 3d space, expects n==MINE_COUNT but also accepts n<MINE_COUNT situations, TODO: this should be optimized to offer better gameplay
     private void generateRandomMines(int n)
     {
         System.Random rnd = new System.Random();
@@ -102,6 +110,7 @@ public class cubeController : MonoBehaviour {
                 --n;
             }
         }
+        setAllCubeText();
     }
 
     //check neighbor mine status for each cube and store sum of it into that cube as text, 26 neighbor for each edge (cubes in the outer surfaces have less than 26)
@@ -141,7 +150,7 @@ public class cubeController : MonoBehaviour {
                     if (!(new Point3D(x - 1, y - 1, z + 0).isInvalidPoint()) && hasMine(new Point3D(x - 1, y - 1, z + 0))) ++mineCount;
                     if (!(new Point3D(x - 1, y - 1, z - 1).isInvalidPoint()) && hasMine(new Point3D(x - 1, y - 1, z - 1))) ++mineCount;         //could not handle the caos,  <+ 0> is cured my cancer
 
-                    if (mineCount != 0) space[x, y, z].setText(mineCount);
+                    if (mineCount != 0) space[x, y, z].setNeigborMineCount(mineCount);
                 }
             }
         }
@@ -176,20 +185,79 @@ public class cubeController : MonoBehaviour {
             RaycastHit hit;
             if (Physics.Raycast(ray, out hit))
             {
-                // the object identified by hit.transform was clicked
-                // do whatever you want
-                Destroy(hit.transform.gameObject);                              //destroy the object located at x,y,z
-                
-                GameObject text = Instantiate(Resources.Load("Prefabs/prefab_text"), hit.transform.gameObject.transform.position, Quaternion.identity) as GameObject;       //place a 3d text object at x,y,z
-                text.GetComponent<TextMesh>().text = "4";
-                textObjects.Add(text);
+                //Destroy(hit.transform.gameObject);                              //destroy the object located at x,y,z
+                //GameObject text = Instantiate(Resources.Load("Prefabs/prefab_text"), hit.transform.gameObject.transform.position, Quaternion.identity) as GameObject;       //place a 3d text object at x,y,z
+                //text.GetComponent<TextMesh>().text = "4";
+                //textObjects.Add(text);
+                blastCube(convertToPoint3D(hit.transform.gameObject.transform.position));
             }
         }
 
-        Transform t = GetComponent<Camera>().transform;                     //rotate all 3d text objects to this angle
+        //rotate all 3d text objects to the camera
+        Transform t = GetComponent<Camera>().transform;
         for (int i = 0; i < textObjects.Count; ++i)
         {
             textObjects[i].transform.LookAt(t.InverseTransformDirection(t.position.x,0,t.position.z));
+        }
+    }
+
+    //does the expected action when clicking a cube
+    private void blastCube(Point3D cube)
+    {
+        if(space[cube.getX(), cube.getY(), cube.getZ()].hasMine())          //user clicked on the mine, game over
+        {
+            space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = Color.red;
+            MODIFY_SPACE = false;
+        }
+        else
+        {
+            if (space[cube.getX(), cube.getY(), cube.getZ()].getCube() != null)
+            {
+                Destroy(space[cube.getX(), cube.getY(), cube.getZ()].getCube());                        //pop out current cube
+                space[cube.getX(), cube.getY(), cube.getZ()].setCube(null);
+            }
+
+            if (space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 0)               //spread the blast to the neighbor cubes
+            {
+                //spread to valid positioned neighbors
+                if (!(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 1).isInvalidPoint()))
+                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 1));
+                if (!(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 0).isInvalidPoint()))
+                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 0));
+                if (!(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() - 1).isInvalidPoint()))
+                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() - 1));
+                if (!(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() + 1).isInvalidPoint()))
+                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() + 1));
+                if (!(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() - 1).isInvalidPoint()))
+                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() - 1));
+                if (!(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 1).isInvalidPoint()))
+                    blastCube(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 1));
+                if (!(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 0).isInvalidPoint()))
+                    blastCube(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 0));
+                if (!(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() - 1).isInvalidPoint()))
+                    blastCube(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() - 1));
+            }
+            else                                            //cube has no mine but has neighbor to at least one mined one
+            {
+                GameObject text = Instantiate(Resources.Load("Prefabs/prefab_text"), new Vector3(cube.getX(), cube.getY(), cube.getZ()), Quaternion.identity) as GameObject;    //create the text object
+                text.GetComponent<TextMesh>().text = space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountS();           //display the text
+                textObjects.Add(text);                      //add text object to the list to rotate to the camera on each update
+            }
+        }
+    }
+
+    //mark mined cubes as red, debug purposes
+    private void enableGodMode()
+    {
+        for (int x = 0; x < SPACE_SIZE; ++x)
+        {
+            for (int y = 0; y < SPACE_SIZE; ++y)
+            {
+                for (int z = 0; z < SPACE_SIZE; ++z)
+                {
+                    if(space[x, y, z].hasMine()) space[x, y, z].getCube().GetComponent<Renderer>().material.color = Color.red;
+                }
+            }
         }
     }
 
@@ -198,13 +266,19 @@ public class cubeController : MonoBehaviour {
     //returns space(point) cube has mine or not
     private bool hasMine(Point3D point)
     {
-        return space[point.getX(), point.getY(), point.getZ()].getMine();
+        return space[point.getX(), point.getY(), point.getZ()].hasMine();
     }
 
     //returns space(point) cube is alive or not
     private bool isAlive(Point3D point)
     {
         return space[point.getX(), point.getY(), point.getZ()].getStatus();
+    }
+
+    //converts Vector3 to Point3D class
+    private Point3D convertToPoint3D(Vector3 v)
+    {
+        return new Point3D((int)v.x, (int)v.y, (int)v.z);
     }
 
     //functions
