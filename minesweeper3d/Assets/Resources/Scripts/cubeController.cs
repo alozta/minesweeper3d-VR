@@ -7,18 +7,21 @@ public class cubeController : MonoBehaviour {
     // Use this for initialization
     void Start()
     {
+        ColorUtility.TryParseHtmlString("#63c2f9", out COLOR_INITIAL);        //color setup
+        ColorUtility.TryParseHtmlString("#4F5B66", out COLOR_MARKED);
+        ColorUtility.TryParseHtmlString("#da121a", out COLOR_MINE);
+        FIXED_TIME = Time.fixedDeltaTime;
+        MOUSE_DOWN_TO_MARK_TIME = FIXED_TIME * 10;                  //TRY THIS NUMBER
         initializeGame(0);
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (MODIFY_SPACE)                                   //if the game continues
-        {
-            objectClickListener();                          //click listener attached to the camera
-        }
+        clickListener();
+        rotateTextToCamera();
         
-        if (Input.GetKey(KeyCode.Escape))               //android tuning, quit when pressing back button, auto quit on manual kill
+        if (Input.GetKey(KeyCode.Escape))                           //android tuning, quit when pressing back button, auto quit on manual kill
         {
             if (Application.platform == RuntimePlatform.Android)
             {
@@ -32,6 +35,13 @@ public class cubeController : MonoBehaviour {
     static int SPACE_SIZE = 5;                                      //default mode is easy
     static int MINE_COUNT = 10;
     static bool MODIFY_SPACE = true;                                //becomes false if user hits the mine, chance to observe the space without further actions
+    static Color COLOR_INITIAL = new Color();
+    static Color COLOR_MARKED = new Color();
+    static Color COLOR_MINE = new Color();
+    static float FIXED_TIME;
+    static float MOUSE_DOWN_TO_MARK_TIME;
+    static Point3D interactedPoint;                                 //clicked cube point
+    static float timeMouseDown = 0;
     public Cube[,,] space;
     List<GameObject> textObjects = new List<GameObject>();          //cube replacement 3d text GameObjects, holding reference to rotate to face the camera on each update
 
@@ -51,6 +61,7 @@ public class cubeController : MonoBehaviour {
             mine = false;
             neigborMineCount = "";
             cube = Instantiate(Resources.Load("Prefabs/prefab_cube"), new Vector3(x, y, z), Quaternion.identity) as GameObject;
+            cube.GetComponent<Renderer>().material.color = COLOR_INITIAL;
         }
 
         public bool getStatus() { return alive; }
@@ -176,28 +187,37 @@ public class cubeController : MonoBehaviour {
         }
     }
 
-    //blast clicked cube & rotate 3d text GameObjects to the camera
-    private void objectClickListener()
+    //returns clicked object location in Point3D
+    private Point3D objectClickListener()
     {
-        if (Input.GetMouseButtonDown(0))                    // if left button pressed
+        timeMouseDown += FIXED_TIME;
+        Ray ray = GetComponent<Camera>().ScreenPointToRay(Input.mousePosition);
+        RaycastHit hit;
+        if (Physics.Raycast(ray, out hit))
         {
-            Ray ray = GetComponent<Camera>().ScreenPointToRay(Input.mousePosition);
-            RaycastHit hit;
-            if (Physics.Raycast(ray, out hit))
+            return convertToPoint3D(hit.transform.gameObject.transform.position);
+        }
+        return null;
+    }
+
+    //click listener
+    private void clickListener()
+    {
+        if (Input.GetMouseButton(0))                        //if left button is held down
+        {
+            if (MODIFY_SPACE)                               //if the game continues
             {
-                //Destroy(hit.transform.gameObject);                              //destroy the object located at x,y,z
-                //GameObject text = Instantiate(Resources.Load("Prefabs/prefab_text"), hit.transform.gameObject.transform.position, Quaternion.identity) as GameObject;       //place a 3d text object at x,y,z
-                //text.GetComponent<TextMesh>().text = "4";
-                //textObjects.Add(text);
-                blastCube(convertToPoint3D(hit.transform.gameObject.transform.position));
+                interactedPoint = objectClickListener();    //click listener attached to the camera
             }
         }
 
-        //rotate all 3d text objects to the camera
-        Transform t = GetComponent<Camera>().transform;
-        for (int i = 0; i < textObjects.Count; ++i)
+        if (Input.GetMouseButtonUp(0))                    // if left button released
         {
-            textObjects[i].transform.LookAt(t.InverseTransformDirection(t.position.x,0,t.position.z));
+            if (interactedPoint != null && timeMouseDown <= MOUSE_DOWN_TO_MARK_TIME) blastCube(interactedPoint);    //click to blast
+            else if (interactedPoint != null) markCube(interactedPoint);                                            //hold to mark
+
+            timeMouseDown = 0;
+            interactedPoint = null;
         }
     }
 
@@ -206,7 +226,7 @@ public class cubeController : MonoBehaviour {
     {
         if(space[cube.getX(), cube.getY(), cube.getZ()].hasMine())          //user clicked on the mine, game over
         {
-            space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = Color.red;
+            space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = COLOR_MINE;
             MODIFY_SPACE = false;
         }
         else
@@ -240,9 +260,26 @@ public class cubeController : MonoBehaviour {
             else                                            //cube has no mine but has neighbor to at least one mined one
             {
                 GameObject text = Instantiate(Resources.Load("Prefabs/prefab_text"), new Vector3(cube.getX(), cube.getY(), cube.getZ()), Quaternion.identity) as GameObject;    //create the text object
-                text.GetComponent<TextMesh>().text = space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountS();           //display the text
+                if(space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 1) text.GetComponent<Renderer>().material.color = Color.blue;                         //select color scheme
+                else if (space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 2) text.GetComponent<Renderer>().material.color = Color.yellow;
+                else if (space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 3) text.GetComponent<Renderer>().material.color = Color.magenta;
+                else text.GetComponent<Renderer>().material.color = Color.red;
+                text.GetComponent<TextMesh>().text = space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountS();                                                       //display the text
                 textObjects.Add(text);                      //add text object to the list to rotate to the camera on each update
             }
+        }
+    }
+
+    //marks/unmarks selected cube
+    private void markCube(Point3D cube)
+    {
+        if(space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color.Equals(COLOR_INITIAL))
+        {
+            space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = COLOR_MARKED;
+        }
+        else                            //COLOR_MARKED
+        {
+            space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = COLOR_INITIAL;
         }
     }
 
@@ -258,6 +295,16 @@ public class cubeController : MonoBehaviour {
                     if(space[x, y, z].hasMine()) space[x, y, z].getCube().GetComponent<Renderer>().material.color = Color.red;
                 }
             }
+        }
+    }
+
+    //rotates all 3d text objects to the camera
+    private void rotateTextToCamera()
+    {
+        Transform t = GetComponent<Camera>().transform;
+        for (int i = 0; i < textObjects.Count; ++i)
+        {
+            textObjects[i].transform.LookAt(t.InverseTransformDirection(t.position.x, 0, t.position.z));
         }
     }
 
