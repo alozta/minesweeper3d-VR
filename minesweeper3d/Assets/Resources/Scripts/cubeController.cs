@@ -49,22 +49,22 @@ public class cubeController : MonoBehaviour {
     {
         private GameObject cube;
         private Point3D point;
-        private bool alive;
+        private bool blasted;
         private bool mine;
         private string neigborMineCount;                     //text to show when the cube is clicked
 
-        //set x,y,z of a cube, make it alive and mine free
+        //set x,y,z of a cube
         public Cube(int x, int y, int z)
         {
             point = new Point3D(x, y, z);
-            alive = true;
+            blasted = false;
             mine = false;
             neigborMineCount = "";
             cube = Instantiate(Resources.Load("Prefabs/prefab_cube"), new Vector3(x, y, z), Quaternion.identity) as GameObject;
             cube.GetComponent<Renderer>().material.color = COLOR_INITIAL;
         }
 
-        public bool getStatus() { return alive; }
+        public bool getStatus() { return blasted; }
         public Point3D getPoint() { return point; }
         public GameObject getCube() { return cube; }
         public bool hasMine() { return mine; }
@@ -73,6 +73,7 @@ public class cubeController : MonoBehaviour {
         public void setMine(bool status) { mine = status; }
         public void setNeigborMineCount(int neighborMineCount) { this.neigborMineCount = neighborMineCount.ToString(); }
         public void setCube(GameObject o) { cube = o; }
+        public void setStatus(bool blasted) { this.blasted = blasted; }
     }
     
     //class variables
@@ -224,13 +225,18 @@ public class cubeController : MonoBehaviour {
     //does the expected action when clicking a cube
     private void blastCube(Point3D cube)
     {
+        if (cube.isInvalidPoint()) return;                                  //dont go out of the territory
+
         if(space[cube.getX(), cube.getY(), cube.getZ()].hasMine())          //user clicked on the mine, game over
         {
             space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = COLOR_MINE;
+            space[cube.getX(), cube.getY(), cube.getZ()].setStatus(true);                               //mark as blasted
             MODIFY_SPACE = false;
         }
-        else
+        else                                                                //no mine
         {
+            space[cube.getX(), cube.getY(), cube.getZ()].setStatus(true);                           //mark as blasted
+
             if (space[cube.getX(), cube.getY(), cube.getZ()].getCube() != null)
             {
                 Destroy(space[cube.getX(), cube.getY(), cube.getZ()].getCube());                        //pop out current cube
@@ -239,23 +245,15 @@ public class cubeController : MonoBehaviour {
 
             if (space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 0)               //spread the blast to the neighbor cubes
             {
-                //spread to valid positioned neighbors
-                if (!(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 1).isInvalidPoint()))
-                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 1));
-                if (!(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 0).isInvalidPoint()))
-                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 0));
-                if (!(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() - 1).isInvalidPoint()))
-                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() - 1));
-                if (!(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() + 1).isInvalidPoint()))
-                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() + 1));
-                if (!(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() - 1).isInvalidPoint()))
-                    blastCube(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() - 1));
-                if (!(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 1).isInvalidPoint()))
-                    blastCube(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 1));
-                if (!(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 0).isInvalidPoint()))
-                    blastCube(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 0));
-                if (!(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() - 1).isInvalidPoint()))
-                    blastCube(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() - 1));
+                //spread to the neighbors
+                if (!isBlasted(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 1))) blastCube(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 1));
+                if (!isBlasted(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 0))) blastCube(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() + 0));
+                if (!isBlasted(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() - 1))) blastCube(new Point3D(cube.getX() + 0, cube.getY() + 1, cube.getZ() - 1));
+                if (!isBlasted(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() + 1))) blastCube(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() + 1));
+                if (!isBlasted(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() - 1))) blastCube(new Point3D(cube.getX() + 0, cube.getY() + 0, cube.getZ() - 1));
+                if (!isBlasted(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 1))) blastCube(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 1));
+                if (!isBlasted(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 0))) blastCube(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() + 0));
+                if (!isBlasted(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() - 1))) blastCube(new Point3D(cube.getX() + 0, cube.getY() - 1, cube.getZ() - 1));
             }
             else                                            //cube has no mine but has neighbor to at least one mined one
             {
@@ -316,10 +314,13 @@ public class cubeController : MonoBehaviour {
         return space[point.getX(), point.getY(), point.getZ()].hasMine();
     }
 
-    //returns space(point) cube is alive or not
-    private bool isAlive(Point3D point)
+    //returns space(point) cube is blasted or not
+    private bool isBlasted(Point3D point)
     {
-        return space[point.getX(), point.getY(), point.getZ()].getStatus();
+        if (!point.isInvalidPoint())
+            return space[point.getX(), point.getY(), point.getZ()].getStatus();
+        else
+            return true;
     }
 
     //converts Vector3 to Point3D class
