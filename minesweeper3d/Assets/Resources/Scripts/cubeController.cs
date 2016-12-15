@@ -7,11 +7,8 @@ public class cubeController : MonoBehaviour {
     // Use this for initialization
     void Start()
     {
-        ColorUtility.TryParseHtmlString("#63c2f9", out COLOR_INITIAL);        //color setup
-        ColorUtility.TryParseHtmlString("#4F5B66", out COLOR_MARKED);
-        ColorUtility.TryParseHtmlString("#da121a", out COLOR_MINE);
         FIXED_TIME = Time.fixedDeltaTime;
-        MOUSE_DOWN_TO_MARK_TIME = FIXED_TIME * 10;                  //TRY THIS NUMBER
+        MOUSE_DOWN_TO_MARK_TIME = FIXED_TIME * 10;
         initializeGame(0);
     }
 
@@ -35,9 +32,11 @@ public class cubeController : MonoBehaviour {
     static int SPACE_SIZE = 5;                                      //default mode is easy
     static int MINE_COUNT = 10;
     static bool MODIFY_SPACE = true;                                //becomes false if user hits the mine, chance to observe the space without further actions
-    static Color COLOR_INITIAL = new Color();
-    static Color COLOR_MARKED = new Color();
-    static Color COLOR_MINE = new Color();
+    static float COLOR_VISIBILITY = 0.01f;
+    static Color COLOR_INITIAL = new Color(0.3f, 1.0f, 1.0f, COLOR_VISIBILITY);
+    static Color COLOR_MARKED = new Color(0.7f, 0.2f, 0.7f, COLOR_VISIBILITY);
+    static Color COLOR_MINE = new Color(0.8f, 0.0f, 0.2f, COLOR_VISIBILITY);
+    static Color COLOR_MINE_BLOWN = new Color(0.0f, 0.0f, 0.0f, COLOR_VISIBILITY);
     static float FIXED_TIME;
     static float MOUSE_DOWN_TO_MARK_TIME;
     static Point3D interactedPoint;                                 //clicked cube point
@@ -229,7 +228,7 @@ public class cubeController : MonoBehaviour {
 
         if(space[cube.getX(), cube.getY(), cube.getZ()].hasMine())          //user clicked on the mine, game over
         {
-            space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = COLOR_MINE;
+            space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = COLOR_MINE_BLOWN;
             space[cube.getX(), cube.getY(), cube.getZ()].setStatus(true);                               //mark as blasted
             MODIFY_SPACE = false;
         }
@@ -290,7 +289,10 @@ public class cubeController : MonoBehaviour {
             {
                 for (int z = 0; z < SPACE_SIZE; ++z)
                 {
-                    if(space[x, y, z].hasMine()) space[x, y, z].getCube().GetComponent<Renderer>().material.color = Color.red;
+                    if(space[x, y, z].hasMine())
+                    {
+                        space[x, y, z].getCube().GetComponent<Renderer>().material.color = COLOR_MINE;
+                    }
                 }
             }
         }
@@ -299,10 +301,14 @@ public class cubeController : MonoBehaviour {
     //rotates all 3d text objects to the camera
     private void rotateTextToCamera()
     {
-        Transform t = GetComponent<Camera>().transform;
+        Vector3 fwd = Camera.main.transform.forward;
+        fwd.y = (float)-0.8;
+        fwd.z = (float)-0.1;
+        //Transform t = GetComponent<Camera>().transform;
         for (int i = 0; i < textObjects.Count; ++i)
         {
-            textObjects[i].transform.LookAt(t.InverseTransformDirection(t.position.x, 0, t.position.z));
+            //textObjects[i].transform.LookAt(t.InverseTransformDirection(t.position.x, 0, t.position.z));
+            textObjects[i].transform.rotation = Quaternion.LookRotation(fwd);
         }
     }
 
