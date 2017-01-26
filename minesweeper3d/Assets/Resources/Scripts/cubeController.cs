@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 public class cubeController : MonoBehaviour {
     
@@ -12,12 +13,36 @@ public class cubeController : MonoBehaviour {
         initializeGame(0);
     }
 
+    IEnumerator showTextFuntion()
+    {
+        if (informativeText == null)
+        {
+            string s;
+            if (WIN) s = "WIN. RESTARTING IN 10 SECONDS.";
+            else s = "LOSE. RESTARTING IN 10 SECONDS.";
+            informativeText = Instantiate(Resources.Load("Prefabs/prefab_text"), new Vector3(0, -5, 0), Quaternion.identity) as GameObject;
+            informativeText.GetComponent<TextMesh>().text = s;
+            informativeText.transform.Rotate(0.0f, -Input.GetAxis("Horizontal"), 0.0f);
+        }
+        yield return new WaitForSeconds(3f);
+        Destroy(informativeText);
+        SceneManager.LoadScene("initial_scene");
+    }
+
     // Update is called once per frame
     void Update()
     {
         clickListener();
         rotateTextToCamera();
-        
+        if (!MODIFY_SPACE)                                              //the game has ended
+        {
+            StartCoroutine(showTextFuntion());
+        }
+        else
+        {
+            updateScoreBoard();
+        }
+
         if (Input.GetKey(KeyCode.Escape))                           //android tuning, quit when pressing back button, auto quit on manual kill
         {
             if (Application.platform == RuntimePlatform.Android)
@@ -33,12 +58,17 @@ public class cubeController : MonoBehaviour {
     static int MINE_COUNT = 10;
     static bool MODIFY_SPACE = true;                                //becomes false if user hits the mine, chance to observe the space without further actions
     static float COLOR_VISIBILITY = 0.01f;
-    static Color COLOR_INITIAL = new Color(0.3f, 1.0f, 1.0f, COLOR_VISIBILITY);
+    static Color COLOR_INITIAL = new Color(0.1f, 0.1f, 0.1f, COLOR_VISIBILITY);
     static Color COLOR_MARKED = new Color(0.7f, 0.2f, 0.7f, COLOR_VISIBILITY);
     static Color COLOR_MINE = new Color(0.8f, 0.0f, 0.2f, COLOR_VISIBILITY);
     static Color COLOR_MINE_BLOWN = new Color(0.0f, 0.0f, 0.0f, COLOR_VISIBILITY);
     static float FIXED_TIME;
     static float MOUSE_DOWN_TO_MARK_TIME;
+    static int SCORE = 0;
+    static int REMAINING_CUBES = 0;
+    static bool WIN = false;
+    static GameObject scoreObject;
+    static GameObject informativeText = null;
     static Point3D interactedPoint;                                 //clicked cube point
     static float timeMouseDown = 0;
     public Cube[,,] space;
@@ -96,6 +126,7 @@ public class cubeController : MonoBehaviour {
     //generates SPACE_SIZExSPACE_SIZExSPACE_SIZE 3D playground with their coordinates
     private void generateSpace()
     {
+        //generate space
         for(int x=0; x<SPACE_SIZE; ++x)
         {
             for(int y=0; y<SPACE_SIZE; ++y)
@@ -106,6 +137,18 @@ public class cubeController : MonoBehaviour {
                 }
             }
         }
+
+        //generate scoreboard
+        scoreObject = Instantiate(Resources.Load("Prefabs/prefab_text"), new Vector3(-5,-5,-5), Quaternion.identity) as GameObject;
+        scoreObject.transform.Rotate(0.0f, -Input.GetAxis("Horizontal"), 0.0f);
+        updateScoreBoard();
+        textObjects.Add(scoreObject);
+    }
+
+    private void updateScoreBoard()
+    {
+        if(scoreObject != null)
+            scoreObject.GetComponent<TextMesh>().text = "REMAINS: " + SCORE.ToString();
     }
 
     //places n mines in 3d space, expects n==MINE_COUNT but also accepts n<MINE_COUNT situations, TODO: this should be optimized to offer better gameplay
@@ -185,6 +228,8 @@ public class cubeController : MonoBehaviour {
             SPACE_SIZE = 10;
             MINE_COUNT = 99;
         }
+        SCORE = MINE_COUNT;
+        REMAINING_CUBES = SPACE_SIZE * SPACE_SIZE * SPACE_SIZE;
     }
 
     //returns clicked object location in Point3D
@@ -211,10 +256,10 @@ public class cubeController : MonoBehaviour {
             }
         }
 
-        if (Input.GetMouseButtonUp(0))                    // if left button released
+        if (Input.GetMouseButtonUp(0))                      // if left button released
         {
-            if (interactedPoint != null && timeMouseDown <= MOUSE_DOWN_TO_MARK_TIME) blastCube(interactedPoint);    //click to blast
-            else if (interactedPoint != null) markCube(interactedPoint);                                            //hold to mark
+            if (MODIFY_SPACE == true && interactedPoint != null && timeMouseDown <= MOUSE_DOWN_TO_MARK_TIME && SCORE > 0) blastCube(interactedPoint);       //click to blast
+            else if (MODIFY_SPACE == true && interactedPoint != null && SCORE > 0) markCube(interactedPoint);                                               //hold to mark
 
             timeMouseDown = 0;
             interactedPoint = null;
@@ -230,11 +275,18 @@ public class cubeController : MonoBehaviour {
         {
             space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = COLOR_MINE_BLOWN;
             space[cube.getX(), cube.getY(), cube.getZ()].setStatus(true);                               //mark as blasted
+            WIN = false;
             MODIFY_SPACE = false;
         }
         else                                                                //no mine
         {
             space[cube.getX(), cube.getY(), cube.getZ()].setStatus(true);                           //mark as blasted
+            --REMAINING_CUBES;
+            if (REMAINING_CUBES <= SCORE)
+            {
+                WIN = true;
+                MODIFY_SPACE = false;
+            }
 
             if (space[cube.getX(), cube.getY(), cube.getZ()].getCube() != null)
             {
@@ -257,10 +309,10 @@ public class cubeController : MonoBehaviour {
             else                                            //cube has no mine but has neighbor to at least one mined one
             {
                 GameObject text = Instantiate(Resources.Load("Prefabs/prefab_text"), new Vector3(cube.getX(), cube.getY(), cube.getZ()), Quaternion.identity) as GameObject;    //create the text object
-                if(space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 1) text.GetComponent<Renderer>().material.color = Color.blue;                         //select color scheme
-                else if (space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 2) text.GetComponent<Renderer>().material.color = Color.yellow;
-                else if (space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 3) text.GetComponent<Renderer>().material.color = Color.magenta;
-                else text.GetComponent<Renderer>().material.color = Color.red;
+                if(space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 1) text.GetComponent<Renderer>().material.color = Color.grey;                         //select color scheme
+                else if (space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 2) text.GetComponent<Renderer>().material.color = Color.cyan;
+                else if (space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountI() == 3) text.GetComponent<Renderer>().material.color = Color.blue;
+                else text.GetComponent<Renderer>().material.color = Color.white;
                 text.GetComponent<TextMesh>().text = space[cube.getX(), cube.getY(), cube.getZ()].getNeigborMineCountS();                                                       //display the text
                 textObjects.Add(text);                      //add text object to the list to rotate to the camera on each update
             }
@@ -273,10 +325,12 @@ public class cubeController : MonoBehaviour {
         if(space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color.Equals(COLOR_INITIAL))
         {
             space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = COLOR_MARKED;
+            if(SCORE > 0) --SCORE;
         }
         else                            //COLOR_MARKED
         {
             space[cube.getX(), cube.getY(), cube.getZ()].getCube().GetComponent<Renderer>().material.color = COLOR_INITIAL;
+            ++SCORE;
         }
     }
 
