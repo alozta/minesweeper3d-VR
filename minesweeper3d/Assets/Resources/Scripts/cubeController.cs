@@ -8,9 +8,15 @@ public class cubeController : MonoBehaviour {
     // Use this for initialization
     void Start()
     {
+        textObjects = new List<GameObject>();          //cube replacement 3d text GameObjects, holding reference to rotate to face the camera on each update
+        COLOR_INITIAL = new Color(0.1f, 0.1f, 0.1f, COLOR_VISIBILITY);
+        COLOR_MARKED = new Color(0.7f, 0.2f, 0.7f, COLOR_VISIBILITY);
+        COLOR_MINE = new Color(0.8f, 0.0f, 0.2f, COLOR_VISIBILITY);
+        COLOR_MINE_BLOWN = new Color(0.0f, 0.0f, 0.0f, COLOR_VISIBILITY);
         FIXED_TIME = Time.fixedDeltaTime;
         MOUSE_DOWN_TO_MARK_TIME = FIXED_TIME * 10;
         initializeGame(0);
+        MODIFY_SPACE = true;
     }
 
     IEnumerator showTextFuntion()
@@ -18,15 +24,16 @@ public class cubeController : MonoBehaviour {
         if (informativeText == null)
         {
             string s;
-            if (WIN) s = "WIN. RESTARTING IN 10 SECONDS.";
-            else s = "LOSE. RESTARTING IN 10 SECONDS.";
-            informativeText = Instantiate(Resources.Load("Prefabs/prefab_text"), new Vector3(0, -5, 0), Quaternion.identity) as GameObject;
-            informativeText.GetComponent<TextMesh>().text = s;
+            if (WIN) s = ":)";
+            else s = "***";
+            informativeText = Instantiate(Resources.Load("Prefabs/prefab_text"), new Vector3(-10, -5, -10), Quaternion.identity) as GameObject;
             informativeText.transform.Rotate(0.0f, -Input.GetAxis("Horizontal"), 0.0f);
+            informativeText.GetComponent<TextMesh>().text = s;
+            informativeText.transform.localScale = new Vector3(informativeText.transform.localScale.x*10, informativeText.transform.localScale.y * 10, informativeText.transform.localScale.z*10);
         }
-        yield return new WaitForSeconds(3f);
-        Destroy(informativeText);
-        SceneManager.LoadScene("initial_scene");
+        yield return new WaitForSeconds(10f);
+        //Destroy(informativeText);
+        //SceneManager.LoadScene("initial_scene");
     }
 
     // Update is called once per frame
@@ -37,6 +44,7 @@ public class cubeController : MonoBehaviour {
         if (!MODIFY_SPACE)                                              //the game has ended
         {
             StartCoroutine(showTextFuntion());
+            //SceneManager.LoadScene("initial_scene");
         }
         else
         {
@@ -58,10 +66,10 @@ public class cubeController : MonoBehaviour {
     static int MINE_COUNT = 10;
     static bool MODIFY_SPACE = true;                                //becomes false if user hits the mine, chance to observe the space without further actions
     static float COLOR_VISIBILITY = 0.01f;
-    static Color COLOR_INITIAL = new Color(0.1f, 0.1f, 0.1f, COLOR_VISIBILITY);
-    static Color COLOR_MARKED = new Color(0.7f, 0.2f, 0.7f, COLOR_VISIBILITY);
-    static Color COLOR_MINE = new Color(0.8f, 0.0f, 0.2f, COLOR_VISIBILITY);
-    static Color COLOR_MINE_BLOWN = new Color(0.0f, 0.0f, 0.0f, COLOR_VISIBILITY);
+    static Color COLOR_INITIAL;
+    static Color COLOR_MARKED;
+    static Color COLOR_MINE;
+    static Color COLOR_MINE_BLOWN;
     static float FIXED_TIME;
     static float MOUSE_DOWN_TO_MARK_TIME;
     static int SCORE = 0;
@@ -72,7 +80,7 @@ public class cubeController : MonoBehaviour {
     static Point3D interactedPoint;                                 //clicked cube point
     static float timeMouseDown = 0;
     public Cube[,,] space;
-    List<GameObject> textObjects = new List<GameObject>();          //cube replacement 3d text GameObjects, holding reference to rotate to face the camera on each update
+    List<GameObject> textObjects;
 
     public class Cube
     {
@@ -362,7 +370,8 @@ public class cubeController : MonoBehaviour {
         for (int i = 0; i < textObjects.Count; ++i)
         {
             //textObjects[i].transform.LookAt(t.InverseTransformDirection(t.position.x, 0, t.position.z));
-            textObjects[i].transform.rotation = Quaternion.LookRotation(fwd);
+            if(textObjects[i] != null)
+                textObjects[i].transform.rotation = Quaternion.LookRotation(fwd);
         }
     }
 
